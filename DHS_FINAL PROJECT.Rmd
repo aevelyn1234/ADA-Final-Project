@@ -1,0 +1,296 @@
+---
+title: "DHS"
+author: "Evelyn Annor"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r}
+#Getting work directory
+getwd()
+
+#importing data
+library(haven)
+DHS_Contraceptive <- read_sav("DHS_Contraceptive.sav")
+View(DHS_Contraceptive)
+
+#Data CLEANING AND MANAGEMENT
+
+#Getting labels of data
+DHS_Contraceptive$"V457"<- as_factor(DHS_Contraceptive$"V457")
+DHS_Contraceptive$"V313"<- as_factor(DHS_Contraceptive$"V313")
+DHS_Contraceptive$"V312"<- as_factor(DHS_Contraceptive$"V312")
+DHS_Contraceptive$"V190"<- as_factor(DHS_Contraceptive$"V190")
+DHS_Contraceptive$"V106"<- as_factor(DHS_Contraceptive$"V106")
+DHS_Contraceptive$"V013"<- as_factor(DHS_Contraceptive$"V013")
+DHS_Contraceptive$"V024"<- as_factor(DHS_Contraceptive$"V024")
+DHS_Contraceptive$"V025"<- as_factor(DHS_Contraceptive$"V025")
+DHS_Contraceptive$"V130"<- as_factor(DHS_Contraceptive$"V130")
+DHS_Contraceptive$"V131"<- as_factor(DHS_Contraceptive$"V131")
+DHS_Contraceptive$"V213"<- as_factor(DHS_Contraceptive$"V213")
+DHS_Contraceptive$"V404"<- as_factor(DHS_Contraceptive$"V404")
+DHS_Contraceptive$"V405"<- as_factor(DHS_Contraceptive$"V405")
+DHS_Contraceptive$"V447"<- as_factor(DHS_Contraceptive$"V447")
+DHS_Contraceptive$"V445"<- as_factor(DHS_Contraceptive$"V445")
+DHS_Contraceptive$"V454C"<- as_factor(DHS_Contraceptive$"V452C")
+DHS_Contraceptive$"V455"<- as_factor(DHS_Contraceptive$"V455")
+
+#Recoding BMI
+names(DHS_Contraceptive)
+str(DHS_Contraceptive$V445)
+#Converting factor BMI into numeric before recoding
+DHS_Contraceptive$BMI_raw <- as.numeric(as.character(DHS_Contraceptive$V445))
+#Confirming it is truely numeric now
+summary(DHS_Contraceptive$BMI_raw)
+head(DHS_Contraceptive$BMI_raw)
+#Converting now
+DHS_Contraceptive$BMI <- DHS_Contraceptive$BMI_raw / 100
+
+#Recoding Anemia continous data
+str(DHS_Contraceptive$V453)
+table(DHS_Contraceptive$V457 == 996)
+table(DHS_Contraceptive$V457 == 994)
+table(DHS_Contraceptive$V457 == 995)
+
+#Converting factor BMI into numeric before recoding
+DHS_Contraceptive$HB_raw <- as.numeric(as.character(DHS_Contraceptive$V453))
+#Confirming it is truely numeric now
+summary(DHS_Contraceptive$HB_raw)
+head(DHS_Contraceptive$HB_raw)
+#Converting now
+DHS_Contraceptive$HB <- DHS_Contraceptive$HB_raw / 10
+
+#Recoding contraceptive type into HORMONAL, NO METHOD AND OTHER METHODS
+str(DHS_Contraceptive$V312)
+#Checking methods labels
+levels(DHS_Contraceptive$V312)
+
+# Convert factor to character
+method <- as.character(DHS_Contraceptive$V312)
+
+# Creating new variable
+DHS_Contraceptive$contraceptive_group <- NA
+
+# 0 = No method
+DHS_Contraceptive$contraceptive_group[method == "Not using"] <- "No method"
+
+# 2 = Hormonal
+DHS_Contraceptive$contraceptive_group[method %in% c("Pill",
+                                                    "Injections",
+                                                    "Implants/Norplant")] <- "Hormonal"
+
+# 1 = Non-hormonal → all remaining non-missing methods
+DHS_Contraceptive$contraceptive_group[
+  is.na(DHS_Contraceptive$contraceptive_group) & !is.na(method)
+] <- "Non-hormonal"
+
+# Turn into ordered factor
+DHS_Contraceptive$contraceptive_group <- factor(
+  DHS_Contraceptive$contraceptive_group,
+  levels = c("No method", "Non-hormonal", "Hormonal")
+)
+
+table(DHS_Contraceptive$contraceptive_group, useNA = "ifany")
+
+#Recoding wealth index combined into rich,middle and poor
+str(DHS_Contraceptive$V190)
+#Converting factor into character
+wealth <- as.character(DHS_Contraceptive$V190)
+str(wealth)
+
+# Creating empty variable
+DHS_Contraceptive$wealth3 <- NA
+
+# Poor group
+DHS_Contraceptive$wealth3[wealth %in% c("Poorest", "Poorer")] <- "Poor"
+
+# Middle group
+DHS_Contraceptive$wealth3[wealth == "Middle"] <- "Middle"
+
+# Rich group
+DHS_Contraceptive$wealth3[wealth %in% c("Richer", "Richest")] <- "Rich"
+
+DHS_Contraceptive$wealth3 <- factor(
+  DHS_Contraceptive$wealth3,
+  levels = c("Poor", "Middle", "Rich")
+)
+
+
+table(DHS_Contraceptive$wealth3, useNA = "ifany")
+
+```
+
+
+```{r}
+
+#Making sure outcome variable is in the right order for ordinal logistic regression
+
+levels(DHS_Contraceptive$V457)
+table(DHS_Contraceptive$V457, useNA = "ifany")
+
+#Setting other
+DHS_Contraceptive$anemia <- factor(
+  DHS_Contraceptive$V457,
+  levels = c("Not anemic", "Mild", "Moderate", "Severe"),
+  ordered = TRUE
+)
+
+#Checking the order
+levels(DHS_Contraceptive$anemia)
+table(DHS_Contraceptive$anemia, useNA = "ifany")
+
+```
+
+
+
+```{r}
+
+#DESCRIPTIVES
+library(table1)
+DHS_Contraceptive$age   <- DHS_Contraceptive$V012   # age in years
+DHS_Contraceptive$parity <- DHS_Contraceptive$V201  # total children
+
+DHS_Contraceptive$anemia              <- DHS_Contraceptive$anemia       # ordered factor
+DHS_Contraceptive$contraceptive_group <- factor(DHS_Contraceptive$contraceptive_group)
+DHS_Contraceptive$hormonal_type       <- factor(DHS_Contraceptive$hormonal_type)
+DHS_Contraceptive$V106                <- factor(DHS_Contraceptive$V106)  # education
+DHS_Contraceptive$wealth3              <- factor(DHS_Contraceptive$wealth3)
+DHS_Contraceptive$V130                <- factor(DHS_Contraceptive$V130)  # religion
+DHS_Contraceptive$V025                <- factor(DHS_Contraceptive$V025)  # residence
+DHS_Contraceptive$V024                <- factor(DHS_Contraceptive$V024)  # region
+
+label(DHS_Contraceptive$age)                <- "Age"
+units(DHS_Contraceptive$age)                <- "years"
+
+label(DHS_Contraceptive$BMI)                <- "Body Mass Index"
+units(DHS_Contraceptive$BMI)                <- "kg/m²"
+
+label(DHS_Contraceptive$parity)             <- "Parity (children ever born)"
+label(DHS_Contraceptive$anemia)             <- "Anemia status"
+label(DHS_Contraceptive$contraceptive_group)<- "Contraceptive method group"
+label(DHS_Contraceptive$hormonal_type)      <- "Hormonal method type"
+label(DHS_Contraceptive$V106)               <- "Education level"
+label(DHS_Contraceptive$wealth3)             <- "Wealth index"
+label(DHS_Contraceptive$V130)               <- "Religion"
+label(DHS_Contraceptive$V025)               <- "Residence"
+label(DHS_Contraceptive$V024)               <- "Region"
+
+
+table1(
+  ~ age + BMI + parity +
+    anemia +
+    contraceptive_group +
+    hormonal_type +
+    V106 + wealth3 + V130 + V025 + V024,
+  data = DHS_Contraceptive
+)
+```
+
+
+
+```{r}
+#Reasearch onjective 1,
+#To determine whether current use of hormonal contraceptives is associated with anemia severity (none, mild, moderate, severe) among non-pregnant women aged 15- 49, in Ghana, 2022.
+
+#Importing libary to run ordinal logistic regression
+library(MASS)
+
+model1 <- polr(
+  anemia ~ contraceptive_group,
+  data = DHS_Contraceptive,
+  Hess = TRUE
+)
+
+summary(model1)
+
+
+#Getting the p-value
+(ctable <- coef(summary(model1)))
+p_values <- 2 * pnorm(abs(ctable[, "t value"]), lower.tail = FALSE)
+cbind(ctable, "p value" = p_values)
+
+#Getting confidence interval
+OR <- exp(coef(model1))
+CI <- exp(confint(model1))
+cbind(OR, CI)
+```
+
+
+
+```{r}
+
+#Adjusting the model with variable from DAG and literature
+#V012=AGE
+#V201=PARITY
+#V106=EDUCATION
+
+model1_adj <- polr(anemia ~ contraceptive_group +  V012 +  V201 + V106 , Hess=TRUE, data = DHS_Contraceptive)
+
+# odds ratios and 95%CIs
+summary(model1_adj)
+tidy(model1_adj, conf.int=TRUE, exponentiate = TRUE, p.values=TRUE)
+
+OR <- exp(coef(model1_adj))
+CI <- exp(confint(model1_adj))
+cbind(OR, CI)
+```
+
+
+
+
+```{r}
+#Reasearch oblective 2
+#To assess whether the association of anemia severity among non-pregnant women (15- 49 years) in Ghana is modified by hormonal contraceptive method type.
+
+
+#Recoding the effect modifier variable(hormonal contraceptive method type)
+
+DHS_Contraceptive$hormonal_type <- NA
+
+DHS_Contraceptive$hormonal_type[DHS_Contraceptive$V312 == "Pill"] <- "Pill"
+DHS_Contraceptive$hormonal_type[DHS_Contraceptive$V312 == "Injections"] <- "Injections"
+DHS_Contraceptive$hormonal_type[DHS_Contraceptive$V312 == "Implants/Norplant"] <- "Implants"
+
+# Everyone else (non-hormonal + no-method)
+DHS_Contraceptive$hormonal_type[is.na(DHS_Contraceptive$hormonal_type)] <- "None"
+
+table(DHS_Contraceptive$contraceptive_group, useNA = "ifany")
+table(DHS_Contraceptive$hormonal_type, useNA = "ifany")
+
+#Effect modfication model
+model2 <- polr(
+  anemia ~ contraceptive_group +  V012 +  V201 + V106 + hormonal_type + contraceptive_group * hormonal_type,
+  data = DHS_Contraceptive,
+  Hess = TRUE
+)
+
+table(DHS_Contraceptive$contraceptive_group, DHS_Contraceptive$hormonal_type)
+
+summary(model2)
+
+#Getting the p-value
+(ctable <- coef(summary(model2)))
+p_values <- 2 * pnorm(abs(ctable[, "t value"]), lower.tail = FALSE)
+cbind(ctable, "p value" = p_values)
+
+
+library(lmtest)
+lrtest(model1_adj, model2)
+
+getwd()
+
+```
+
+```{r}
+#Subgroup analysis(hormonal method users only)
+hormonal_only <- subset(DHS_Contraceptive, contraceptive_group == "Hormonal")
+
+mod_hormonal <- polr(
+  anemia ~ V012 +  V201 + V106 + hormonal_type, data = hormonal_only,
+  Hess = TRUE
+)
+
+summary(mod_hormonal)
+exp(cbind(OR = coef(mod_hormonal), confint(mod_hormonal)))
+```
+
