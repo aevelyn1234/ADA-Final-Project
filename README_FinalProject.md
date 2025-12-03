@@ -86,5 +86,3 @@ saved
         Washington University in St. Louis
 - Course: Advance Data Analysis
 -Date: December,2025
-
-getwd()
