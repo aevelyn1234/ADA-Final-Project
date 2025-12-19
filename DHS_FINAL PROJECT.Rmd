@@ -477,3 +477,161 @@ lrtest(Multimodel4, Multimodel5)
 ```
 
 
+```{r}
+##CHecking the types of contraceptives
+
+table(DHS_Contraceptive$V312, useNA = "ifany")
+```
+
+```{r}
+library(dplyr)
+library(forcats)
+library(haven)
+
+# 1) Make sure V312 is readable as text labels
+DHS_Contraceptive <- DHS_Contraceptive %>%
+  mutate(
+    method_raw = as_factor(V312)  
+  )
+
+# 2) Create the exposure variable with method-specific levels + grouped small categories
+DHS_Contraceptive <- DHS_Contraceptive %>%
+  mutate(
+    contra_type = case_when(
+      method_raw %in% c("Not using", "No method") ~ "No method",
+
+      # Major specific methods (keep separate)
+      method_raw == "Pill" ~ "Pill",
+      method_raw == "Injections" ~ "Injection",
+      method_raw == "Implants/Norplant" ~ "Implant",
+      method_raw == "IUD" ~ "IUD",
+      method_raw == "Male condom" ~ "Male condom",
+      method_raw == "Female sterilization" ~ "Female sterilization",
+
+      # Group: Traditional methods (combine)
+      method_raw %in% c("Periodic abstinence",
+                        "Withdrawal",
+                        "Standard days method (SDM)",
+                        "Other traditional") ~ "Traditional methods",
+
+      # Group: Other modern methods (combine small/episodic)
+      method_raw %in% c("Emergency contraception",
+                        "Other modern method") ~ "Other modern methods",
+
+      # Zero-count / not present / rare categories: set to NA (exclude later)
+      method_raw %in% c("Diaphragm",
+                        "Female condom",
+                        "Foam or jelly",
+                        "Male sterilization",
+                        "Prolonged abstinence",
+                        "Specific method 1",
+                        "Specific method 2") ~ NA_character_,
+
+      # Anything unexpected
+      TRUE ~ NA_character_
+    ),
+
+    # 3) Convert to factor and set reference category
+    contra_type = factor(
+      contra_type,
+      levels = c("No method",
+                 "Pill",
+                 "Injection",
+                 "Implant",
+                 "IUD",
+                 "Male condom",
+                 "Female sterilization",
+                 "Traditional methods",
+                 "Other modern methods")
+    )
+  )
+
+# Optional: check counts
+table(DHS_Contraceptive$contra_type, useNA = "ifany")
+```
+
+```{r}
+DHS_Contraceptive <- DHS_Contraceptive %>%
+  mutate(
+    contra_type = case_when(
+      method_raw %in% c("Not using", "No method") ~ "No method",
+
+      method_raw == "Pill" ~ "Pill",
+      method_raw == "Injections" ~ "Injection",
+      method_raw == "Implants/Norplant" ~ "Implant",
+      method_raw == "IUD" ~ "IUD",
+      method_raw == "Male condom" ~ "Male condom",
+      method_raw == "Female sterilization" ~ "Female sterilization",
+
+      # Add LAM explicitly
+      method_raw == "Lactational amenorrhea (LAM)" ~ "LAM",
+
+      method_raw %in% c("Periodic abstinence",
+                        "Withdrawal",
+                        "Standard days method (SDM)",
+                        "Other traditional") ~ "Traditional methods",
+
+      method_raw %in% c("Emergency contraception",
+                        "Other modern method") ~ "Other modern methods",
+
+      # truly zero/rare/unobserved types remain NA
+      method_raw %in% c("Diaphragm",
+                        "Female condom",
+                        "Foam or jelly",
+                        "Male sterilization",
+                        "Prolonged abstinence",
+                        "Specific method 1",
+                        "Specific method 2") ~ NA_character_,
+
+      TRUE ~ NA_character_
+    ),
+    contra_type = factor(
+      contra_type,
+      levels = c("No method",
+                 "Pill",
+                 "Injection",
+                 "Implant",
+                 "IUD",
+                 "Male condom",
+                 "Female sterilization",
+                 "LAM",
+                 "Traditional methods",
+                 "Other modern methods")
+    )
+  )
+
+table(DHS_Contraceptive$contra_type, useNA = "ifany")
+```
+```{r}
+with(DHS_Contraceptive, table(contra_type, anemia))
+```
+
+```{r}
+library(dplyr)
+
+DHS_Contraceptive <- DHS_Contraceptive %>%
+  mutate(
+    anemia3 = case_when(
+      anemia == "Not anemic" ~ "Not anemic",
+      anemia == "Mild" ~ "Mild",
+      anemia %in% c("Moderate", "Severe") ~ "Moderate/Severe",
+      TRUE ~ NA_character_
+    ),
+    anemia3 = factor(anemia3, levels = c("Not anemic", "Mild", "Moderate/Severe"))
+  )
+
+# Check the new counts
+with(DHS_Contraceptive, table(contra_type, anemia3, useNA = "ifany"))
+```
+
+```{r}
+##Unadjusted model
+Multimodel7 <- multinom(anemia3 ~ contra_type, data = DHS_Contraceptive)
+summary(Multimodel7)
+```
+
+```{r}
+Multimodel6 <- multinom(anemia3 ~ contra_type +  V013 + parity_cat + V106, data = DHS_Contraceptive)
+summary(Multimodel6)
+```
+
